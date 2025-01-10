@@ -26,3 +26,30 @@ The root cause, we think, is the following. The guesser task and the verifier ta
 
 To test this explanation, I wrote this minimal demo. I find that it explains the observations quite well.
 
+## Demo
+
+The file `main.rs` contains a minimal working example that reproduces this observation along with potential cures. A guesser task is started, and then 1.5 second later, a verify task is started. Depending on the configuration, the verify task completes either *after* the the guesser task is done, or *while it is running*. When the difficulty/target is well configured, the second case entails a completed verify task long before the guess task is finished. The second order of events is the desired behavior; the first was the motivation for the whole bug hunt that led to this demo.
+
+### Configurations
+
+The parameter `DIFFICULTY` regulates the ($\log_2$ of the) expected number of guessed before finding a valid pre-image, and, consequently, the expected duration of the guess task.
+
+There are three configurations for the guess task:
+ 1. naïve parallelism using rayon's global thread-pool (<-- original error-triggering configuration);
+ 2. sequential;
+ 3. parallelism using a segregated rayon thread-pool (<-- proposed solution).
+
+There are two configurations for spawning the verify task as far as tokio is concerned:
+ 1. directly from the main task using `.await`;
+ 2. in a separate task using `spawn_blocking`.
+
+There are two modes for the verify task in terms of parallelism:
+ 1. parallelism using rayon's global thread-pool;
+ 2. sequential.
+
+Note that using a segregated rayon thread-pool for the verify task is not possible configuration because (a) in our case the verifier function lives in a separate library; and (b) this configuration adds no explaining power to the issue at hand. Nevertheless, we do expect that configuration to yield a viable solution also.
+
+To select the configuration, look for the lines marked with `**` asterisks `**` and comment/un-comment the right line below.
+
+
+
