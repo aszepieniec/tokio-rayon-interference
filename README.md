@@ -1,6 +1,6 @@
 # Tokio/Rayon Interference
 
-Minimal example exhibiting how competing demands on rayon's thread pool, coming from separate tokio tasks, can interfere with each other resulting one stalling task, and a potential resolution.
+Minimal example exhibiting how competing demands on rayon's thread pool, coming from separate tokio tasks, can interfere with each other resulting one stalling task, and potential resolutions.
 
 ## Setting
 
@@ -60,4 +60,8 @@ The observations across all configurations can be condensed to two propositions:
  1. *Whenever the guess and the verify task are parallelized with the global rayon thread-pool, the verify task ends up stalling.* This proposition supports the hypothesized root cause: the jobs originating from the verify task are never executed because the guess tasks endlessly spawns new jobs that have priority.
  2. *Whether the verify task is invoked directly from the main task, or whether a separate task is spawned for it, is irrelevant to the observed behavior.* Note that it is recommended to use `spawn_blocking` for CPU-bound code that takes more than 10 ms or so to complete. And that's probably good advice in general and even in this case, but the point is that in this particular case it does nothing to resolve the issue. It merely contains the stall to a new task, as opposed to stalling the main task where it will surely be noticed.
 
+## Conclusion
 
+Based on the available evidence, the issue arises from competing and concurrent demands on rayon's global thread-pool. Its resources are served to the first client and not shared with latecomers until the first is done. Reliable fixes are a) to make one or both tasks sequential, or b) to use a segregated rayon thread-pool for at least one task.
+
+I confess I'm uncertain as to *why* this behavior occurs. One would naïvely expect rayon's global thread-pool to be shared between early birds and late comers. I *suspect* (but did not confirm) that the *de facto* queue comes about as a result of rayon's *sequential* work management. By engaging a separate thread-pool we get distinct sequential work managers who take turns, courtesy of tokio.
