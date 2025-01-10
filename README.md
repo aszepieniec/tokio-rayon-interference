@@ -30,6 +30,8 @@ To test this explanation, I wrote this minimal demo. I find that it explains the
 
 The file `main.rs` contains a minimal working example that reproduces this observation along with potential cures. A guesser task is started, and then 1.5 second later, a verify task is started. Depending on the configuration, the verify task completes either *after* the the guesser task is done, or *while it is running*. When the difficulty/target is well configured, the second case entails a completed verify task long before the guess task is finished. The second order of events is the desired behavior; the first was the motivation for the whole bug hunt that led to this demo.
 
+Both tasks write text to stdout. Based on the timing of this text, one can infer the likely order of events. Note that there is some noise in between tasks terminating and stdout flushing, so it is imperative to configure the difficulty appropriately in order to magnify the signal.
+
 ### Configurations
 
 The parameter `DIFFICULTY` regulates the ($\log_2$ of the) expected number of guessed before finding a valid pre-image, and, consequently, the expected duration of the guess task.
