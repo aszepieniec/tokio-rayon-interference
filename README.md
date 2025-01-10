@@ -32,7 +32,7 @@ The file `main.rs` contains a minimal working example that reproduces this obser
 
 Both tasks write text to stdout. Based on the timing of this text, one can infer the likely order of events. Note that there is some noise in between tasks terminating and stdout flushing, so it is imperative to configure the difficulty appropriately in order to magnify the signal.
 
-### Configurations
+### Configuration
 
 The parameter `DIFFICULTY` regulates the ($\log_2$ of the) expected number of guessed before finding a valid pre-image, and, consequently, the expected duration of the guess task.
 
@@ -53,5 +53,11 @@ Note that using a segregated rayon thread-pool for the verify task is not possib
 
 To select the configuration, look for the lines marked with `**` asterisks `**` and comment/un-comment the right line below.
 
+### Observations
+
+The observations across all configurations can be condensed to two propositions:
+
+ 1. *Whenever the guess and the verify task are parallelized with the global rayon thread-pool, the verify task ends up stalling.* This proposition supports the hypothesized root cause: the jobs originating from the verify task are never executed because the guess tasks endlessly spawns new jobs that have priority.
+ 2. *Whether the verify task is invoked directly from the main task, or whether a separate task is spawned for it, is irrelevant to the observed behavior.* Note that it is recommended to use `spawn_blocking` for CPU-bound code that takes more than 10 ms or so to complete. And that's probably good advice in general and even in this case, but the point is that in this particular case it does nothing to resolve the issue. It merely contains the stall to a new task, as opposed to stalling the main task where it will surely be noticed.
 
 

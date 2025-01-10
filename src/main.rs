@@ -37,13 +37,12 @@ fn main() {
 
         // spawn verify task
         // ** activate exactly one of the next four lines: **
-        let verdict = spawn_blocking(par_verify_direct).await.unwrap();
-        // let verdict = par_verify_spawn().await;
-        // let verdict = spawn_blocking(seq_verify_direct).await.unwrap();
+        let verdict = par_verify_spawn().await;
+        // let verdict = spawn_blocking(par_verify_direct).await.unwrap();
         // let verdict = seq_verify_spawn().await;
+        // let verdict = spawn_blocking(seq_verify_direct).await.unwrap();
 
         // block until verify is done
-        let verdict = par_verify_spawn().await;
         println!("got verdict: {verdict}\n");
 
         // block until guessing is done
