@@ -7,6 +7,7 @@ use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
 use std::iter;
 use std::time::Duration;
+use tokio::task::spawn_blocking;
 
 /// Number of leading zeros for a valid guess.
 const DIFFICULTY: usize = 8;
@@ -20,22 +21,29 @@ fn main() {
         .expect("Could not create tokio runtime");
 
     tokio_runtime.block_on(async {
+        // spawn guesser task
         // ** activate exactly one of the next three lines: **
         let guess_function = par_guess_global;
         // let guess_function = seq_guess;
         // let guess_function = par_guess_segregated;
-
-        // spawn guesser task and then (1.5 s later) spawn verify task
         let guesser_task = tokio::task::spawn_blocking(move || {
             let winning_guess = guess_function();
             println!("**** got winning guess: {winning_guess} ****");
             winning_guess
         });
+
+        // wait 1.5 s
         std::thread::sleep(Duration::from_secs_f64(1.5));
-        let verifier_task = tokio::task::spawn_blocking(verify);
+
+        // spawn verify task
+        // ** activate exactly one of the next four lines: **
+        let verdict = spawn_blocking(par_verify_direct).await.unwrap();
+        // let verdict = par_verify_spawn().await;
+        // let verdict = spawn_blocking(seq_verify_direct).await.unwrap();
+        // let verdict = seq_verify_spawn().await;
 
         // block until verify is done
-        let verdict = verifier_task.await.unwrap();
+        let verdict = par_verify_spawn().await;
         println!("got verdict: {verdict}\n");
 
         // block until guessing is done
@@ -100,8 +108,8 @@ fn seq_guess() -> u64 {
         .unwrap()
 }
 
-/// Verify in parallel, using rayon's global thread-pool.
-fn verify() -> bool {
+/// Verify in parallel in the current task, using rayon's global thread-pool.
+fn par_verify_direct() -> bool {
     let seed = rand::thread_rng().r#gen::<[u8; 32]>();
     let verdict = (0..=u8::MAX)
         .into_par_iter()
@@ -114,4 +122,36 @@ fn verify() -> bool {
         .all(|i| i > 0);
     println!("**** done with verification; verdict: {} ****", verdict);
     verdict
+}
+
+/// Verify in parallel in a spawned task, using rayon's global thread-pool.
+async fn par_verify_spawn() -> bool {
+    tokio::task::spawn_blocking(par_verify_direct)
+        .await
+        .expect("should be able to spawn parallel verify task")
+}
+
+/// Verify sequentially in the current task.
+fn seq_verify_direct() -> bool {
+    let seed = rand::thread_rng().r#gen::<[u8; 32]>();
+    let verdict = (0..=u8::MAX)
+        .map(|c| {
+            let mut local_seed = seed;
+            *local_seed.last_mut().unwrap() = local_seed.last().unwrap().wrapping_add(c);
+            let mut local_rng = StdRng::from_seed(local_seed);
+            local_rng.next_u64()
+        })
+        .all(|i| i > 0);
+    println!(
+        "**** done with sequential verification; verdict: {} ****",
+        verdict
+    );
+    verdict
+}
+
+/// Verify sequantially in a spawned task.
+async fn seq_verify_spawn() -> bool {
+    tokio::task::spawn_blocking(seq_verify_direct)
+        .await
+        .expect("should be able to spawn sequential verify task")
 }
